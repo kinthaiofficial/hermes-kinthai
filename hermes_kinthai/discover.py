@@ -30,31 +30,15 @@ def discover_profiles() -> list[dict]:
         if not unit.endswith(".service"):
             continue
 
-        try:
-            cat = subprocess.run(
-                ["systemctl", "cat", unit],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-        except subprocess.TimeoutExpired:
+        # Infer profile name from service unit name: hermes-{profile}.service
+        svc_name = unit[: -len(".service")]  # e.g. "hermes-voc_analyst"
+        if not svc_name.startswith("hermes-"):
             continue
+        profile_name = svc_name[len("hermes-"):]  # e.g. "voc_analyst"
 
-        exec_match = re.search(r"ExecStart=(.+)", cat.stdout)
-        if not exec_match:
-            continue
-        cmd = exec_match.group(1).strip()
-
-        # Detect profile from command line
-        if "-p" not in cmd:
-            # Default profile (hermes-lead)
+        if profile_name == "lead":
             hermes_home = _hermes_user_home(".hermes")
-            profile_name = "lead"
         else:
-            p_match = re.search(r"-p\s+(\S+)", cmd)
-            if not p_match:
-                continue
-            profile_name = p_match.group(1)
             hermes_home = _hermes_user_home(f".hermes/profiles/{profile_name}")
 
         port = _read_env_var(os.path.join(hermes_home, ".env"), "WEBHOOK_PORT")
