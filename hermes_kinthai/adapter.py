@@ -101,13 +101,13 @@ class KinthaiAdapter(BasePlatformAdapter):
         self._session = aiohttp.ClientSession()
         try:
             async with self._session.get(
-                f"{self.api_base}/api/v1/me",
+                f"{self.api_base}/api/v1/users/me",
                 headers={"Authorization": f"Bearer {self.api_key}"},
             ) as r:
                 me = await r.json()
-                self._kk_user_id = str(me.get("user_id") or me.get("id", ""))
+                self._kk_user_id = str(me.get("public_id") or me.get("user_id") or me.get("id", ""))
         except Exception as e:
-            logger.error("[kinthai] /me failed: %s", e)
+            logger.error("[kinthai] /users/me failed: %s", e)
             await self._session.close()
             self._session = None
             return False
@@ -211,7 +211,8 @@ class KinthaiAdapter(BasePlatformAdapter):
             return
         seen[msg_id] = now
 
-        msg = await self._fetch_message(msg_id)
+        conv_id = data["conversation_id"]
+        msg = await self._fetch_message(msg_id, conv_id)
         if msg is None:
             return
         if str(msg.get("sender_id")) == self._kk_user_id:
@@ -221,7 +222,6 @@ class KinthaiAdapter(BasePlatformAdapter):
             {"event": "message.received", "message_id": msg_id}
         ))
 
-        conv_id = data["conversation_id"]
         pending.setdefault(conv_id, []).append(msg)
 
         existing = timers.get(conv_id)
@@ -269,13 +269,21 @@ class KinthaiAdapter(BasePlatformAdapter):
         )
         await self.handle_message(event)
 
-    async def _fetch_message(self, msg_id: str) -> Optional[dict]:
+    async def _fetch_message(self, msg_id: str, conv_id: str) -> Optional[dict]:
         try:
             async with self._session.get(
-                f"{self.api_base}/api/v1/messages/{msg_id}",
+                f"{self.api_base}/api/v1/conversations/{conv_id}/messages",
+                params={"around": msg_id, "limit": "1"},
                 headers={"Authorization": f"Bearer {self.api_key}"},
             ) as r:
-                return await r.json() if r.status == 200 else None
+                if r.status != 200:
+                    return None
+                data = await r.json()
+                msgs = data.get("messages", [])
+                for m in msgs:
+                    if m.get("message_id") == msg_id:
+                        return m
+                return msgs[-1] if msgs else None
         except Exception:
             return None
 
