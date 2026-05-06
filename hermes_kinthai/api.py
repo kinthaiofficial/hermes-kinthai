@@ -29,7 +29,7 @@ def get_me(api_key: str) -> dict:
 
 
 def get_agent_status(api_key: str) -> dict:
-    return _get("/api/v1/users/me", api_key)
+    return _get("/api/v1/agents/me", api_key)
 
 
 def _post(path: str, data: dict) -> dict:

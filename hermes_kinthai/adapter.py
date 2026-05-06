@@ -272,18 +272,10 @@ class KinthaiAdapter(BasePlatformAdapter):
     async def _fetch_message(self, msg_id: str, conv_id: str) -> Optional[dict]:
         try:
             async with self._session.get(
-                f"{self.api_base}/api/v1/conversations/{conv_id}/messages",
-                params={"around": msg_id, "limit": "1"},
+                f"{self.api_base}/api/v1/messages/{msg_id}",
                 headers={"Authorization": f"Bearer {self.api_key}"},
             ) as r:
-                if r.status != 200:
-                    return None
-                data = await r.json()
-                msgs = data.get("messages", [])
-                for m in msgs:
-                    if m.get("message_id") == msg_id:
-                        return m
-                return msgs[-1] if msgs else None
+                return await r.json() if r.status == 200 else None
         except Exception:
             return None
 
