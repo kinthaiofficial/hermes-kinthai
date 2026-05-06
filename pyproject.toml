@@ -18,7 +18,7 @@ dependencies = [
 hermes-kinthai = "hermes_kinthai.cli:main"
 
 [project.entry-points."hermes_agent.plugins"]
-kinthai = "hermes_kinthai.adapter:register"
+kinthai = "hermes_kinthai.adapter"
 
 [project.urls]
 Homepage = "https://kinthai.ai"

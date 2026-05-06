@@ -7,8 +7,37 @@ import yaml
 
 
 def install_to_hermes_venv(pip: str) -> None:
-    """Install (or upgrade) hermes-kinthai into the Hermes venv."""
-    subprocess.run([pip, "install", "--upgrade", "hermes-kinthai"], check=True)
+    """Install (or upgrade) hermes-kinthai into the Hermes venv.
+
+    `pip` may be:
+    - A pip binary  → pip install --upgrade <pkg>
+    - A Python binary (uv-managed venvs omit pip) → try uv pip install,
+      then fall back to python -m ensurepip + pip
+
+    Set HERMES_KINTHAI_WHEEL env var to install from a local .whl file
+    instead of PyPI (useful for testing before PyPI publication).
+    """
+    pkg = os.environ.get("HERMES_KINTHAI_WHEEL", "hermes-kinthai")
+    name = os.path.basename(pip)
+    if not name.startswith("python"):
+        subprocess.run([pip, "install", "--upgrade", pkg], check=True)
+        return
+
+    # uv-managed venv: look for uv in the same bin directory
+    uv = os.path.join(os.path.dirname(pip), "uv")
+    if not os.path.isfile(uv):
+        uv = os.path.join(os.path.expanduser("~hermes"), ".local", "bin", "uv")
+    if os.path.isfile(uv):
+        subprocess.run(
+            [uv, "pip", "install", "--python", pip, pkg],
+            check=True,
+            env={**os.environ, "UV_NO_CONFIG": "1"},
+        )
+        return
+
+    # Fallback: bootstrap pip via ensurepip, then install
+    subprocess.run([pip, "-m", "ensurepip", "--upgrade"], capture_output=True)
+    subprocess.run([pip, "-m", "pip", "install", "--upgrade", pkg], check=True)
 
 
 def configure_profile(hermes_home: str, api_key: str) -> None:

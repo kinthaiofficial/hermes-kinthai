@@ -67,7 +67,7 @@ def _cmd_install(email: str) -> None:
                 agent_name=agent_id,
             )
             api_key = resp.get("api_key") or resp.get("token", "")
-            kk_agent_id = resp.get("agent_id") or resp.get("id", "")
+            kk_agent_id = resp.get("kk_agent_id") or resp.get("agent_id") or resp.get("id", "")
             state[agent_id] = {"api_key": api_key, "kk_agent_id": kk_agent_id}
             # Update _agents list (idempotent)
             state["_agents"] = [

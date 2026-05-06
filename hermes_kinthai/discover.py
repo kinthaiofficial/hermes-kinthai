@@ -78,9 +78,11 @@ def _read_env_var(env_file: str, key: str) -> Optional[str]:
 
 
 def get_hermes_pip() -> Optional[str]:
-    """Resolve the pip binary inside the Hermes venv.
+    """Resolve a pip-capable binary inside the Hermes venv.
 
     Follows the symlink /home/hermes/.local/bin/hermes → venv/bin/hermes.
+    Returns the pip binary if present, otherwise the Python binary (uv-managed
+    venvs omit pip — callers should use `python -m pip install` in that case).
     """
     link = "/home/hermes/.local/bin/hermes"
     if not os.path.islink(link):
@@ -89,7 +91,15 @@ def get_hermes_pip() -> Optional[str]:
         real = os.readlink(link)
         if not os.path.isabs(real):
             real = os.path.join(os.path.dirname(link), real)
-        pip = os.path.join(os.path.dirname(real), "pip")
-        return pip if os.path.isfile(pip) else None
+        bin_dir = os.path.dirname(real)
+        pip = os.path.join(bin_dir, "pip")
+        if os.path.isfile(pip):
+            return pip
+        # uv-managed venv: no pip binary — fall back to Python
+        for name in ("python", "python3", "python3.11"):
+            py = os.path.join(bin_dir, name)
+            if os.path.isfile(py):
+                return py
+        return None
     except OSError:
         return None
