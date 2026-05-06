@@ -6,6 +6,7 @@ import sys
 import urllib.error
 
 from . import api, install, tokens, verify
+from .verify import UNVERIFIABLE
 from .discover import discover_profiles, get_hermes_pip
 from .machine_id import get_machine_id
 
@@ -128,20 +129,29 @@ def _cmd_install(email: str) -> None:
         {"id": p["id"], "api_key": p["api_key"]} for p in registered
     ]
     results = verify.wait_for_agents(agent_creds, timeout=45.0)
-    all_ok = True
-    for agent_id, online in results.items():
-        mark = "✓" if online else "✗ (timeout — check service logs)"
+    unverified = False
+    failed = False
+    for agent_id, status in results.items():
+        if status is True:
+            mark = "✓ online"
+        elif status == UNVERIFIABLE:
+            mark = "? connected (online status not yet in API)"
+            unverified = True
+        else:
+            mark = "✗ timeout — check service logs"
+            failed = True
         print(f"      → {agent_id}: {mark}")
-        if not online:
-            all_ok = False
 
     print()
-    if all_ok:
-        mentions = "  ".join(f"@{p['id']}" for p in registered)
-        print(f"  Done! Mention your agents:  {mentions}")
-    else:
+    mentions = "  ".join(f"@{p['id']}" for p in registered)
+    if failed:
         print("  Some agents did not come online. "
               "Run `journalctl -u hermes-lead -n 50` to investigate.")
+    else:
+        print(f"  Done! Mention your agents:  {mentions}")
+    if unverified:
+        print("  Note: online confirmation requires backend to add "
+              "`online` field to GET /api/v1/users/me")
     print()
 
 
@@ -223,8 +233,11 @@ def _cmd_status() -> None:
             continue
         try:
             info = api.get_agent_status(api_key)
-            online = info.get("online") or info.get("status") == "online"
-            mark = "● online" if online else "○ offline"
+            if "online" in info or "status" in info:
+                online = info.get("online") or info.get("status") == "online"
+                mark = "● online" if online else "○ offline"
+            else:
+                mark = "? (online status not in API)"
         except Exception as e:
             mark = f"? ({e})"
         print(f"    {agent_id}: {mark}")
