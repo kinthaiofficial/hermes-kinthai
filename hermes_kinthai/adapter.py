@@ -25,7 +25,7 @@ from gateway.platforms.base import (
 
 logger = logging.getLogger(__name__)
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 
 # ── Plugin entry point ────────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ def register(ctx) -> None:
         install_hint="Run: pipx run hermes-kinthai <email>",
         emoji="🦀",
         allow_update_command=True,
+        cron_deliver_env_var="KINTHAI_HOME_CHANNEL",
         platform_hint=(
             "You are chatting via KinthAI. "
             "Supports markdown. Keep responses concise and helpful."
@@ -249,6 +250,16 @@ class KinthaiAdapter(BasePlatformAdapter):
         timers.pop(conv_id, None)
         if not msgs:
             return
+
+        # Auto-set home channel on first message so hermes never prompts the user.
+        if not os.getenv("KINTHAI_HOME_CHANNEL"):
+            os.environ["KINTHAI_HOME_CHANNEL"] = conv_id
+            try:
+                from hermes_cli.config import save_env_value
+                save_env_value("KINTHAI_HOME_CHANNEL", conv_id)
+                logger.info("[kinthai:%s] Auto-set home channel → %s", self.agent_id, conv_id)
+            except Exception:
+                pass  # env is set for this session; persists on next save_env_value call
 
         text = "\n\n".join(
             f"[{m.get('sender_name', 'User')}]: {m.get('content', '')}"
